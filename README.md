@@ -1,4 +1,4 @@
 qslinz
 ======
 
-QsLinz, a simple and funny lightweight javascript libruary.
+QsLinz, A simple but funny javascript library.
