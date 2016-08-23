@@ -1,15 +1,12 @@
-
 /*
- * Qs.zLw QsLinz Javascript Library version 0.1.2
+ * Qs.zLw QsLinz Javascript Library version 0.1.3
  * A simple but funny javascript library.
- * Last Update: Mon Nov 24 2014 09:22:42 GMT+0800 (中国标准时间)
+ * Last Update: Tue Mar 24 2015 14:10:27 GMT+0800 CST
  */
 
 ;(function( window, undefined ) {
 
-var core_version = "0.1.2",
-	
-	isIE = !-[1,],
+var core_version = "0.1.3",
 	
 	readyList = [],	
 	
@@ -667,6 +664,48 @@ Q.fn.extend({
 	}		
 });
 
+// 性能检测
+// 2015.3.23添加，代码摘自jQuery1.10.2
+Q.support = (function(support){
+	
+	/*
+	var all, a, div = document.createElement("div");
+	
+	div.setAttribute( "className", "t" );
+	div.innerHTML = "  <link/><table></table><a href='/a'>a</a><input type='checkbox'/>";
+	
+	all = div.getElementsByTagName("*") || [];
+	a = div.getElementsByTagName("a")[ 0 ];
+	if ( !a || !a.style || !all.length ) {
+		return support;
+	}
+	
+	a.style.cssText = "top:1px;float:left;opacity:.5";
+	
+	support.leadingWhitespace = div.firstChild.nodeType === 3;
+	support.tbody = !div.getElementsByTagName("tbody").length;
+	support.style = /top/.test( a.getAttribute("style") );
+	support.hrefNormalized = a.getAttribute("href") === "/a";
+	support.opacity = /^0.5/.test( a.style.opacity );
+	support.cssFloat = !!a.style.cssFloat;
+	
+	div = all = a = null; // Avoid leaks in IE	
+	*/
+	
+	var div = document.createElement("div");
+	
+	//div.setAttribute( "className", "t" );
+	div.style.cssText = "top:1px;float:left;opacity:.5";
+	
+	support.style = /top/.test( div.getAttribute("style") );
+	support.opacity = /^0.5/.test( div.style.opacity );
+	support.cssFloat = !!div.style.cssFloat;
+	
+	div = null; // Avoid leaks in IE
+	
+	return support;
+})({});
+
 // CSS与文档属性操作相关
 Q.extend({	
 	setAttr: function( obj, attr, value ) {
@@ -689,13 +728,13 @@ Q.extend({
 		if( typeof obj !== "object" ) return;
 		return document.defaultView ? document.defaultView.getComputedStyle( obj, null ) : obj.currentStyle;
 	},
-	setStyle: function( obj, style, value ) {
+	setStyle: function( obj, style, valueSet ) {
 		if( typeof obj !== "object" ) return;
-		if( typeof style == "string" ){ var _style = style; style = {}; style[ _style ] = value; }
+		if( typeof style == "string" ){ var _style = style; style = {}; style[ _style ] = valueSet; }
 		
 		for( var name in style ){
 			var value = style[ name ];
-			if( name == "opacity" && isIE ){
+			if( name == "opacity" && !Q.support.opacity ){
 				var _cur = this.currentStyle,
 					_ori = _cur && _cur.filter || "",
 					_value = "alpha(opacity=" + (value * 100 | 0) + ")";
@@ -703,9 +742,16 @@ Q.extend({
 				obj.style.zoom = 1; // 2014.11.7 IE下非布局样式无法实现透明度，需要强制指定zoom值。
 				obj.style.filter = _ori;
 			}else if( name == "float" ) { 
-				obj.style[ isIE ? "styleFloat" : "cssFloat" ] = value;
+				//obj.style[ Q.isIE ? "styleFloat" : "cssFloat" ] = value; // IE9+与Opera均支持cssFloat
+				obj.style[ Q.support.cssFloat ? "cssFloat" : "styleFloat" ] = value; // 2015.3.23 采用support设置float
 			}else{
-				obj.style[ Q.camelCase( name )] = value;
+				// 2015.3.23 加入纯数值判定
+				if( typeof value === 'number' && (/width|height|top|bottom|right|left|margin|padding/i).test(name) ) {
+					value = value + 'px';
+				}
+				
+				/**/
+				obj.style[ Q.camelCase( name ) ] = value;
 			}
 		}
 	},
@@ -762,7 +808,7 @@ Q.extend({
 		
 		if( tagName in oDisplay ) value = oDisplay[tagName];
 		
-		Q.setStyle( elem, "display", value);
+		Q.setStyle( elem, "display", value );
 	} /*,
 	// IE透明度
 	opacity: function( obj, value ){ 
@@ -973,10 +1019,7 @@ Q.CE = Q.CustomEvent = {
 	}
 }
 
-// 获取内容
-// 不完善的实现方式，尽量避免使用此方法。
-// Dom在未加载完毕或者元素大量存在并且页面复杂时会导致浏览器渲染失败，可能会出现操作中止的情况
-// 火狐浏览器下没有innerText和outerText属性
+// 获取与强制指定HTML内容
 Q.each({
 	html: "innerHTML",
 	HTML: "outerHTML",
@@ -985,7 +1028,9 @@ Q.each({
 }, function( name, prop ){
 	Q.fn[ name ] = function( value, index ){
 		if( typeof value === "string" ){
-			index === "all" ?
+			//index === "all" ?
+			//2015.3.23 修改第二个参数为空时设置所有元素
+			index === undefined ?
 			this.each( function(){ this[ prop ] = value; } ) : 
 			this[ typeof index === "number" ? index : 0 ][ prop ] = value;
 			return this;
@@ -1229,7 +1274,7 @@ Q.extend({
 		var width = elem.offsetWidth, height = elem.offsetHeight;
 		if ( !width && !height ) {
 			var repair = !Q.contains( document.body, elem ), parent;
-			if ( repair ) {//如果元素不在body上
+			if ( repair ) { //如果元素不在body上
 				parent = elem.parentNode;
 				document.body.insertBefore(elem, document.body.childNodes[0]);
 			}
@@ -1264,7 +1309,7 @@ Q.extend({
 	rect: function(node){
 		var left = 0, top = 0, right = 0, bottom = 0;
 		//ie8的getBoundingClientRect获取不准确
-		if ( !node.getBoundingClientRect || Q.B.IE8 ) {
+		if ( !node.getBoundingClientRect || Q.B.isIE8 ) {
 			var n = node;
 			while (n) { left += n.offsetLeft, top += n.offsetTop; n = n.offsetParent; };
 			right = left + node.offsetWidth; bottom = top + node.offsetHeight;
@@ -1307,6 +1352,8 @@ Q.extend({
 		while( elem.firstChild ) elem.removeChild( elem.firstChild );
 		return elem;
 	},
+	// 2015.3.23 取消创建HTML节点的方法，在传入参数的时候自行确定元素是否包裹或者克隆
+	/*
 	genNode: function( value ){
 		var _genNode = typeof value === "string" ? 
 			document.createTextNode( value ) : 
@@ -1314,28 +1361,28 @@ Q.extend({
 				value.cloneNode( true ) :
 				value;
 		return _genNode;
-	},
+	},*/
 	append: function( elem, value ){
-		elem.appendChild( Q.genNode( value ) );
+		elem.appendChild( value /*Q.genNode( value )*/ );
 		return elem;
 	},
 	prepend: function( elem, value ){		
-		elem.insertBefore( Q.genNode( value ), elem.firstChild );
+		elem.insertBefore( value /*Q.genNode( value )*/, elem.firstChild );
 		return elem;
 	},
 	html: function( elem, value ){
 		return Q.append( Q.clear( elem ), value );
-	},
+	},  // 此方法中如果第二个参数为字符串请使用Q.fn.html替代 2015.3.23
 	before: function( elem, value ){
-		elem.parentNode.insertBefore( Q.genNode( value ), elem );
+		elem.parentNode.insertBefore( value /*Q.genNode( value )*/, elem );
 		return elem.parentNode;
 	},
 	after: function( elem, value ){
-		elem.parentNode.insertBefore( Q.genNode( value ), elem.nextSibling );
+		elem.parentNode.insertBefore( value /*Q.genNode( value )*/, elem.nextSibling );
 		return elem.parentNode;
 	},
 	insert: function( elem, value, pos ){
-		elem.insertBefore( Q.genNode( value ), pos || null );
+		elem.insertBefore( value /*Q.genNode( value )*/, pos || null );
 		return elem;
 	}
 });
@@ -1357,7 +1404,7 @@ Q.each({
 Q.fn.extend({
 	appendTo: function( elem ){
 		return this.each( function(){
-			Q(elem)[0].appendChild( Q.genNode(this) );
+			Q(elem)[0].appendChild( this /*Q.genNode(this)*/ );
 		});
 	},
 	suicide: function(){
@@ -1468,6 +1515,8 @@ Q.extend({
 });
 
 // 元素包裹相关
+// 2015.3.23 取消该方法！
+/*
 Q.extend({
 	wrap: function( elem, options ){
 		options = Q.extend({ nodeName: "div" }, options || {} );
@@ -1510,6 +1559,7 @@ Q.fn.extend({
 		return this.each( function(){ wrapper.appendChild( this ); });
 	}
 });
+*/
 
 // Mount to window
 window.Q = window.QsLn = Q;
@@ -1612,10 +1662,9 @@ Q.extend({
 			if( t < d ){
 				//根据缓动方法获取当前设定的数值
 				v = e(t,b,c,d);
-				//修正数值
 				
-				if( name !== 'opacity' ) v = v + 'px';
 				//时间未超出时设置元素的样式
+				//if( name !== 'opacity' ) v = v + 'px'; // 2015.3.23 已修正纯数值设定
 				Q.setStyle( elem, name, v );
 			} else {
 				//完成后的操作
@@ -1625,7 +1674,7 @@ Q.extend({
 				//delete elem[s];
 				
 				//设置最终值
-				if( name !== 'opacity' ) value = value + 'px';
+				//if( name !== 'opacity' ) value = value + 'px'; // 2015.3.23 已修正纯数值设定
 				Q.setStyle( elem, name, value );
 				
 				//函数回调
@@ -1663,7 +1712,7 @@ Q.animate._default={
 	normal: 400,
 	slow: 600,
 	fast: 200
-}
+};
 
 //动画方法
 Q.fn.extend({
@@ -1681,11 +1730,12 @@ Q.fn.extend({
 	fade: function( speed, start, end, callback ){
 		return this.animate( 'opacity', end, speed, 'linear', callback, start );
 	},
-	slideUp: function( speed, easing ){
-		return this.animate( 'height', 0, speed, easing );
+	slideUp: function( speed, easing, callback ){
+		return this.animate( 'height', 0, speed, easing, callback );
 	},
-	slideDown: function( speed, height, easing ){
-		return this.animate( 'height', height, speed, easing , null, 0 );
+	// 2015.3.23 修改传入参数顺序，依次为高度，速度/持续时间，缓动方法
+	slideDown: function( height, speed, easing, callback ){
+		return this.animate( 'height', height, speed, easing , callback, 0 );
 	},
 	stop: function( name ){
 		return this.each(function(){
@@ -1693,6 +1743,17 @@ Q.fn.extend({
 		});
 	}
 });
+
+// 2015.3.24 添加AMD支持
+if ( typeof module === "object" && module && typeof module.exports === "object" ) {
+	module.exports = Q;
+}
+if ( typeof define === "function" && define.amd ) {
+	define( "qslinz", [], function() {
+		return Q;
+	});
+}
+/**/
 
 })(window);
 
