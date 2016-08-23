@@ -1,13 +1,13 @@
 
 /*
- * Qs.zLw QsLinz Javascript Library version 0.1.1
+ * Qs.zLw QsLinz Javascript Library version 0.1.2
  * A simple but funny javascript library.
- * Last Update: Wed Jun 11 2014 11:39:19 GMT+0800 (中国标准时间)
+ * Last Update: Mon Nov 24 2014 09:22:42 GMT+0800 (中国标准时间)
  */
 
 ;(function( window, undefined ) {
 
-var core_version = "0.1.1",
+var core_version = "0.1.2",
 	
 	isIE = !-[1,],
 	
@@ -21,8 +21,8 @@ var core_version = "0.1.1",
 	// Backup for pre-Q
 	_Q = window.Q;
 
-var Q = function( selector, container ){
-	return new Q.fn.init( selector, container );
+var Q = function( selector, context ){
+	return new Q.fn.init( selector, context );
 };
 
 Q.fn = Q.prototype = {
@@ -31,7 +31,7 @@ Q.fn = Q.prototype = {
 	
 	constructor: Q,
 	
-	init: function( selector, container ){
+	init: function( selector, context ){
 		
 		if( !selector ) return this;
 		
@@ -43,20 +43,13 @@ Q.fn = Q.prototype = {
 		
 		if( sType === "string" ){
 			
-			var elem = Q.UserCSSSelectorEngine && Q.Engine ? Q.Engine( selector, container ) : Q.Q( selector, container );	
+			var ret = Q( Q.Q( selector, context ) );
+			ret.selector = selector;
+			if( context ) ret.context = context;
 			
-			this.selector = selector;
-			
-			if( elem && elem.length ) {				
-				for( var i = 0, j = elem.length; i < j; i++){
-					this[i] = elem[i];
-				}
-				this.length = j;			
-			} else {				
-				this.length = 1;
-				this[0] = elem;		
-			}
+			return ret;
 		}
+		
 		
 		if( sType === "object" ){
 			var i = 0, j = selector.length;
@@ -76,13 +69,17 @@ Q.fn = Q.prototype = {
 	
 	selector: "",
 	
-	length:0,
+	length: 0,
 	
-	toArray:function(){
+	toArray: function(){
 		return [].slice.call( this );
 	},
 	get: function( num ){
 		return typeof num !== "number" ? this.toArray() : num < 0 ? this[ this.length + num ] : this[ num ];
+	},
+	
+	size: function(){
+		return this.length;
 	},
 	
 	// Take a trick on the console: 
@@ -267,6 +264,11 @@ Q.extend({
 	},
 	now: function() {
 		return ( new Date() ).getTime();
+	},
+	trim: function( str ){ 
+		return String.prototype.trim ? 
+			String.prototype.trim.call( str ) :
+			str.replace( /^\s+|\s+$/g, "" );
 	}
 });
 
@@ -353,204 +355,209 @@ Q.type = function( test, surface ){
 	return _type;
 };
 
-// 选择器
+//附加工具函数。2014.10.2添加
+//具体类型判断，部分代码[isWindow,isNumeric,isArrayLike,isEmptyObject]来自jQuery1.10.2
+Q.extend({
+	isWindow: function( obj ) {
+		/* jshint eqeqeq: false */
+		return obj != null && obj == obj.window;
+	},
+	isNumeric: function( obj ) {
+		return !isNaN( parseFloat(obj) ) && isFinite( obj );
+	},
+	isString: function( unkown ){ return Q.type( unkown ) === "string"; },
+	isFunction: function( unkown ){ return Q.type( unkown ) === "function"; },
+	isObject: function( unkown ){ return Q.type( unkown, true ) === "object"; },
+	isArray: function( unkown ){ return Q.type( unkown ) === "array"; },
+	isArrayLike: function( unkown ) {
+		var type = Q.type( unkown ), length;
+	
+		if ( Q.isWindow( unkown ) ) {
+			return false;
+		}
+		
+		if( type === "array" ) { 
+			return true;
+		}
+		
+		if( type === "object" ) length = unkown.length;
+	
+		if ( unkown.nodeType === 1 && length ) {
+			return true;
+		}
+	
+		return type === "array" || type !== "function" &&
+			( length === 0 ||
+			typeof length === "number" && length > 0 && ( length - 1 ) in unkown );
+	},
+	isEmptyObject: function( obj ) {
+		var name;
+		for ( name in obj ) {
+			return false;
+		}
+		return true;
+	},
+	isHTMLElement: function( unkown ){ return /element/.test( Q.type( unkown ) ); },
+	isNode: function( unkown ){ return !!unkown && unkown.nodeType && unkown.nodeType === 1 || false; }
+});
+
+// 选择器。非通用，开发代号：QinF
 Q.$ = function( id ){ return document.getElementById( id ); };
-Q.Q = function( selector, container ){
+Q.$$ = function( selector, node ){	
 	
-	//zlw ReWrite 2014.1.30
+	if( typeof selector !== "string" ) return selector || node || document;
 	
-	//return if the selector'type is not string
-	if( typeof(selector) !== "string" ) return selector || container || document;
+	if( node === null ) return null;
 	
-	//if the container is absulute null, return null
-	//fix the error of multi-selector
-	if( container === null ) return null;
-	
-	var //set the node for container
-		//if the container is a nodelist, we defualtly use the first element.
-		//if the container does not exist, we use document alternatively.
-		node =  container && container[0] || container || document,
+	var node = node || document,	
+		//一组正则表达式
+		rID = /^#((?:\\.|[\w-]|[^\x00-\xa0])+)/,
+		rCLASS = /\.((?:\.|[\w-]|[^\x00-\xa0])+)/,
+		rTAG = /^((?:\\.|[\w*-]|[^\x00-\xa0])+)/,
+		//rATTR = /\[((?:\\.|[\w-]|[^\x00-\xa0])+)(?:([*^$|!~]?=)((?:\\.|[\w-]|[^\x00-\xa0])+))?\]/,
+		//rATTR = /\[((?:\\.|[\w-]|[^\x00-\xa0])+(?:=(?:\\.|[\w-*(.)^$|!~?=+-]|[^\x00-\xa0])+)?)\]/,
+		rATTR = /\[(.+)\]/,
+		rSN = /\[([+-]?\d+)\]/,
+		rPSEUDO = /:(?:([~!^]?))(.+)/,
 		
 		//split the selector by space
 		selectors = selector.split(/\s+/),
 		
-		//core-selector
 		selector_core = selectors[0],
-		
-		//rest-selector
+		selector_main = selector_core.split(":")[0],
 		selector_rest,
 		
 		//elements [may] exist in the core selector
 		core_tag = "*",
 		core_class = "",
-		core_token = "",
 		core_attr = "",
-		core_sn = -2;	
+		core_sn = null,
+		core_pseudo = null,
+		
+		//存储结果
+		elems, elemt = [],
+		
+		//Attr与Pseudo专用变量
+		name, value, rTest, attr,
+		
+		//循环变量与计量
+		i, j, k = 0, l = 0;
 	
-	if( selectors.length === 1 ) {
-		
-		//test id
-		if( /#(\w+)/.test( selector_core ) ) return Q.$( RegExp.$1 );
-		
-		//test tag
-		if( /^(\w+)/.test( selector_core ) ) core_tag = RegExp.$1;
-		
-		//test sn
-		if( /\[([+-]?\d+)\]/.test( selector_core ) ) core_sn = parseInt( RegExp.$1, 10 );		
-		
-		//test attribute
-		if( /\[(\D.*)\]/.test( selector_core ) ) core_attr = RegExp.$1;
-		
-		//test token
-		if( /:(.+)/.test( selector_core ) ) {
-			
-			//get token
-			core_token = RegExp.$1;
-			
-			//test attribute
-			if( core_attr ) {
-				
-				//test classname
-				if( /\.([\w.-]+).*\[/.test( selector_core ) ) core_class = RegExp.$1;
-										  
-			} else {
-				
-				if( /\.([\w.-]+).*:/.test( selector_core ) ) core_class = RegExp.$1;	
-				
+	//处理组合的情况
+	j = node.length
+	if( j ){
+		if( j === 1 ){
+			// 当前数组中只有一个值，直接以这一个值进行后续的选择
+			node = node[0];
+		}else{
+			// 多个则进行合并
+			var ret = [], one;
+			for( i = 0; i < j; i++ ){
+				one = Q.$$( selector, node[i] );
+				if( one ) ret = Q.makeArray( one, ret );
 			}
-			
-		} else {
-			
-			if( core_attr ) {
-				
-				//test classname
-				if( /\.([\w.-]+)\[/.test( selector_core ) ) core_class = RegExp.$1;
-				
-			} else {
-			
-				if( /\.([\w.-]+)/.test( selector_core ) ) core_class = RegExp.$1;
-			
-			}
+			return ret.length > 0 ? Q.unique( ret ) : null;
 		}
+	}
+	
+	//操作主体代码
+	if( selectors.length === 1 ){
+		//ID
+		if( rID.test( selector_core ) ) return Q.$( RegExp.$1 );
 		
-		var //for-loop and flag
-			i, j, k = 0,
-			p, q, m = 0;
-			
-			//elements by tagname
-			elems = node.getElementsByTagName ?　node.getElementsByTagName( core_tag ) : null,
-			
-			//elements contain classname or token
-			elem_class = [],
-			elem_token = [],
-			elem_attr = [];
+		//TAG
+		if( rTAG.test( selector_core ) ) core_tag = RegExp.$1;
 		
+		//CLASS
+		if( rCLASS.test( selector_main ) ) core_class = RegExp.$1;
+		
+		//SN
+		if( rSN.test( selector_main ) ) core_sn = parseInt( RegExp.$1, 10 );
+		
+		//ATTR
+		if( rATTR.test( selector_main ) ) core_attr = RegExp.$1;
+		
+		//Pseudo
+		if( rPSEUDO.test( selector_core ) ) core_pseudo = selector_core.match(rPSEUDO);
+		
+		//以Tag方式查找相应元素
+		elems = node.getElementsByTagName ? node.getElementsByTagName( core_tag ) : null;
 		
 		if( !elems ) return null;
 		
-		if( core_class !== "" ) {
-			
-			for( i = 0, j = elems.length; i < j; i++ ) {
-				if( Q.hasClass( elems[i], core_class.replace( /\./g , " " ) ) ) elem_class[ k++ ] = elems[i];
+		if( core_class !== "" ){
+			for( i = 0, j = elems.length; i < j; i++ ){
+				if( Q.hasClass( elems[i], core_class.replace( /\./g , " " ) ) ) elemt[ k++ ] = elems[i];
 			}
-			
-		} else {
-			elem_class = elems;
+			elems = elemt;
+			elemt = [];
 		}
 		
-		k = elem_class.length;
-		
+		k = elems.length;		
 		if( k === 0 ) return null;
 		
-		if( core_sn !== -2 ) return core_sn == -1 ? elem_class[ k - 1 ] : elem_class [ core_sn ] ? elem_class [ core_sn ] : null;
-		
-		if( core_token === "" ){
-			
-			elem_token = elem_class;
-			
-		}else{
-		
-			var token_type = core_token.substring( 0, 1 );
-			
-			if( "~!^".indexOf( token_type ) != -1 ) core_token = core_token.substring( 1, core_token.length );
-			
-			var tokens = core_token.split("|"), b_token = false;
-			
-			m = 0;
-			
-			for( i = 0; i < k; i++ )
-				
-				if( token_type === "!" || token_type === "^" ){
-					
-					//set ! as not in innerHTML, ^ as not in outerHTML
-					b_token = true;
-					for( p = 0, q = tokens.length; p < q; p++ ){
-						if( token_type === "!" ){
-							if( elem_class[ i ].innerHTML.indexOf( tokens[ p ] ) != -1 ){ b_token = false; break; }
-						}else{
-							if( elem_class[ i ].outerHTML.indexOf( tokens[ p ] ) != -1 ){ b_token = false; break; }
-						}
-					}
-					if( b_token === true ) elem_token[ m++ ] = elem_class[ i ];
-				} else {
-					
-					//set ~ as in outerHTML, other as in innerHTML
-					b_token = false;
-					for( p = 0, q = tokens.length; p < q; p++ ){
-						if( token_type === "~" ){
-							if( elem_class[ i ].outerHTML.indexOf( tokens[ p ] ) != -1 ){ b_token = true; break; }
-						}else{
-							if( elem_class[ i ].innerHTML.indexOf( tokens[ p ] ) != -1 ){ b_token = true; break; }
-						}
-					}
-					if( b_token === true ) elem_token[ m++ ] = elem_class[ i ];					
-				}
-			// End For
+		//如果设置了序号，直接返回序号对应的元素，序号不在范围之内则返回null
+		if( core_sn !== null ){
+			j = +core_sn + ( core_sn < 0 ? k : 0 );
+			return j >= 0 && j < k ? elems[j] : null;
 		}
 		
-		if( core_attr === "" ){
-		
-			elem_attr = elem_token;
+		//针对属性选择器进行筛选，属性筛选引用了正则表达式，慎用。
+		k = 0;
+		if( core_attr !== "" ){
 			
-		} else {
+			name = core_attr.split("=")[0];
+			value = core_attr.split("=")[1];
 			
-			var attr_name, attr_value, attr_ori, b_attr, r_attr;
-			
-			m = 0;
-			
-			for( i = 0, j = elem_token.length; i < j; i++ ){
-				
-				attr_name = core_attr.split("=")[0];
-				attr_value = core_attr.replace( attr_name, "" ).replace( "=", "" );
-				
-				if( /[~!^]$/.test( attr_name ) ){
-					b_attr = true;
-					attr_name = attr_name.replace( /[~!^]$/, "" );
-				}
-				
-				r_attr = new RegExp( attr_value, "i" );
-				
-				attr_ori = elem_token[ i ].getAttribute( attr_name );
-				
-				if( attr_ori === null ) continue;
-				
-				if( b_attr === true ) {
-					
-					if( !r_attr.test( attr_ori ) ) elem_attr[ m++ ] = elem_token[ i ];
-					
-				} else {
-					
-					if( r_attr.test( attr_ori ) ) elem_attr[ m++ ] = elem_token[ i ];
-				
+			rTest = new RegExp( value ); // eval(value)
+						
+			for( i = 0, j = elems.length; i < j; i++ ){
+				attr = elems[i].getAttribute( name );
+				if( value ){
+					if( rTest.test( attr ) ) elemt[ k++ ] = elems[i];
+				}else{
+					if( attr != null ) elemt[ k++ ] = elems[i];
 				}
 			}
+			elems = elemt;
+			elemt = [];
 		}
 		
-		return elem_attr.length > 0 ? elem_attr : null;
-	//
+		k = elems.length;		
+		if( k === 0 ) return null;
 		
-	} else {
+		//拓展选择器，html代码中是否包含相关，采用正则表达式匹配，慎用。
+		k = 0;
+		if( core_pseudo ){
+			rTest = new RegExp( core_pseudo[2] );
+			switch(core_pseudo[1]){
+				case '!':
+					for( i = 0, j = elems.length; i < j; i++ ){
+						if( !rTest.test( elems[i].innerHTML ) ) elemt[ k++ ] = elems[i];
+					}
+					break;
+				case '^':
+					for( i = 0, j = elems.length; i < j; i++ ){
+						if( !rTest.test( elems[i].outerHTML ) ) elemt[ k++ ] = elems[i];
+					}				
+					break;
+				case '~':
+					for( i = 0, j = elems.length; i < j; i++ ){
+						if( rTest.test( elems[i].outerHTML ) ) elemt[ k++ ] = elems[i];
+					}				
+					break;
+				default: 
+					for( i = 0, j = elems.length; i < j; i++ ){
+						if( rTest.test( elems[i].innerHTML ) ) elemt[ k++ ] = elems[i];
+					}				
+					break;
+			}
+			elems = elemt;
+			elemt = [];
+		}
 		
+		return elems.length > 0 ? Q.makeArray(elems) : null;  //生成数组返回以避免Safari下的Nodelist出现function的BUG。 2014.11.8
+	}else{
 		//drop the first element
 		selectors.shift();
 		
@@ -558,9 +565,12 @@ Q.Q = function( selector, container ){
 		selector_rest = selectors.join(" ");
 		
 		//recursion
-		return Q.Q( selector_rest, Q.Q( selector_core, node ) );
-		
+		return Q.$$( selector_rest, Q.$$( selector_core, node ) );
 	}
+};
+
+Q.Q = function( selector, context ){
+	return Q.UCS ? Q.UCS( selector, context ) : Q.$$( selector, context );
 };
 
 // CSS类名操作
@@ -603,8 +613,38 @@ Q.extend({
 			}
 			if( !b_remove ) ret[ k++ ] = _ori[i];
 		}
-		elem.className = ret.join( " " );
-		return ret.join( " " );
+		name = ret.join( " " );
+		name = Q.trim( name );
+		elem.className = name;
+		return name;
+	},
+	toggleClass: function( elem, name ){
+		if( typeof elem !== "object" ) return;
+		var _name = name.split(/\s+/), _ori = ( elem.className || "" ).split(/\s+/),
+			b, i, j, m, n, k = 0, ret = [];
+		
+		//第一步操作：过滤
+		for( i = 0, j = _ori.length; i < j; i++ ){
+			b = false;
+			for( m = 0, n = _name.length; m < n; m++ ){
+				if( _name[m] === _ori[i] ){ b = true; break; }
+			}
+			if( !b ) ret[k++] = _ori[i];
+		}
+		
+		//第二步操作：添加
+		for( i = 0, j = _name.length; i < j; i++ ){
+			b = true;
+			for( m = 0, n = _ori.length; m < n; m++ ){
+				if( _ori[m] === _name[i] ){ b = false; break; }
+			}
+			if( b ) ret[k++] = _name[i];
+		}		
+		
+		name = ret.join( " " );
+		name = Q.trim( name );
+		elem.className = name;
+		return name;
 	}
 });
 
@@ -623,13 +663,7 @@ Q.fn.extend({
 		return this.each(function(){ Q.removeClass( this, name ); });
 	},
 	toggleClass: function( name ){
-		return this.each(
-			function(){ 
-				Q.hasClass( this, name ) ? 
-				Q.removeClass( this, name )
-				: Q.addClass( this, name );
-			}
-		);
+		return this.each(function(){ Q.toggleClass( this, name ); });
 	}		
 });
 
@@ -665,8 +699,9 @@ Q.extend({
 				var _cur = this.currentStyle,
 					_ori = _cur && _cur.filter || "",
 					_value = "alpha(opacity=" + (value * 100 | 0) + ")";
-				_ori = _ori === "" ? _value : _ori.replace( /alpha\([^)]*\)/, "" ) + " " + _value;					
-				obj.style.filter = _value;
+				_ori = _ori === "" ? _value : _ori.replace( /alpha\([^)]*\)/, "" ) + " " + _value;
+				obj.style.zoom = 1; // 2014.11.7 IE下非布局样式无法实现透明度，需要强制指定zoom值。
+				obj.style.filter = _ori;
 			}else if( name == "float" ) { 
 				obj.style[ isIE ? "styleFloat" : "cssFloat" ] = value;
 			}else{
@@ -721,19 +756,24 @@ Q.extend({
 			caption:"table-caption"
 		};
 		
-		if( '|button|textarea|input|object|select|'.indexOf( '|' + tagName + '|' ) != -1 ) value = "inline-block";
+		if( '|button|textarea|input|object|select|img|'.indexOf( '|' + tagName + '|' ) != -1 ) value = "inline-block";
 		
-		if( '|span|img|a|b|u|i|label|strong|em|'.indexOf( '|' + tagName + '|' ) != -1 ) value = "inline";
+		if( '|span|a|b|u|i|label|strong|em|'.indexOf( '|' + tagName + '|' ) != -1 ) value = "inline";
 		
 		if( tagName in oDisplay ) value = oDisplay[tagName];
 		
 		Q.setStyle( elem, "display", value);
-	},
+	} /*,
 	// IE透明度
 	opacity: function( obj, value ){ 
 		if( typeof obj !== "object" ) return;
-		obj.filters ? obj.style.filter = (obj.currentStyle && obj.currentStyle.filter || "").replace( /alpha\([^)]*\)/, "" ) + " alpha(opacity=" + value + ")" : obj.style.opacity = value/100;
-	}
+		if( obj.filters ){
+			obj.style.zoom = 1;
+			obj.style.filter = (obj.currentStyle && obj.currentStyle.filter || "").replace( /alpha\([^)]*\)/, "" ) + " alpha(opacity=" + value + ")";
+		}else{
+			obj.style.opacity = value/100;
+		}
+	}*/ //2014.11.21 取消单独的元素透明度方法
 });
 
 Q.fn.extend({
@@ -790,10 +830,10 @@ Q.B = function(userAgent){
 		isIE9: /msie 9/.test(ua),
 		isIE10: /msie 10/.test(ua),
 		isChrome: /chrome/.test(ua),
-		isFirefox: /firefox/.test(ua)
-		isOpera: /opera/.test(ua),
+		isFirefox: /firefox/.test(ua),
 		isAndroid: /android/.test(ua),
-		isSafari: /webkit/.test(ua) && !/chrome/.test(ua),  // hmhm, safari and chrome, .-_.
+		isOpera: /opera/.test(ua),
+		isSafari: /webkit/.test(ua) && !/chrome/.test(ua)		
 	}
 }( window.navigator.userAgent );
 
@@ -804,12 +844,10 @@ function contains(parentNode, childNode){
 	} else {
 		return !!(parentNode.compareDocumentPosition(childNode) & 16);
 	}
-}
+};
 //2014.7.11 修复FireFox下没有window.event对象的问题
-	function getEvent(e) {
-		return e || window.event || arguments.callee.caller.arguments[0];
-	}
-	function mouseHover(target,e){
+function getEvent(e){ return e||window.event||arguments.callee.caller.arguments[0]; };
+function mouseHover(target,e){
 	//var e = window.event || arguments.callee.caller.arguments[0];
 	if(getEvent(e).type.toLowerCase()=="mouseover"){
 	//if(e.type=="mouseover"){
@@ -819,9 +857,11 @@ function contains(parentNode, childNode){
 		return !contains(target,getEvent(e).relatedTarget||getEvent(e).toElement) && !((getEvent(e).relatedTarget||getEvent(e).toElement)===target);
 		//return !contains(target,e.relatedTarget||e.toElement) && !((e.relatedTarget||e.toElement)===target);
 	}
-}
-	Q.extend({
+};
+
+Q.extend({
 	contains: contains,
+	/*
 	//Sizzle contains method 
 	contains_Sizzle: function( a, b ) {
 		var adown = a.nodeType === 9 ? a.documentElement : a,
@@ -842,7 +882,7 @@ function contains(parentNode, childNode){
 			}
 		}
 		return false;
-	},
+	}, // 隐藏Sizzle内部方法 *////**/
 	bind: function( obj, type, fun ){
 		if( !obj || Q.type(fun) !== "function" ) return;
 		
@@ -862,8 +902,9 @@ function contains(parentNode, childNode){
 		if( obj.addEventListener ){
 			obj.addEventListener( type, fun, false );
 		}else if( obj.attachEvent ){
-			obj[ "e" + type + fun ] = fun;
-			obj.attachEvent( "on" + type, function(){ obj[ "e" + type + fun ].call( obj, window.event ); } );				
+			//obj[ "e" + type + fun ] = fun;
+			//obj.attachEvent( "on" + type, function(){ obj[ "e" + type + fun ].call( obj, window.event ); } );
+			obj.attachEvent( "on" + type, function(){ fun.call( obj, window.event ); } ); // 2014.11.21 取消元素属性设置转移方法
 		}else{
 			obj[ "on" + type ] = fun;
 		}
@@ -873,9 +914,9 @@ function contains(parentNode, childNode){
 		if( obj.removeEventListener ){
 			obj.removeEventListener( type, fun, false );
 		}else if( obj.detachEvent ){
-			obj.detachEvent( "on" + type, obj[ "e" + type + fun ] );
-			obj[ "e" + type + fun ] = null;
-			
+			//obj.detachEvent( "on" + type, obj[ "e" + type + fun ] );
+			//obj[ "e" + type + fun ] = null;
+			obj.detachEvent( "on" + type, fun ); // 2014.11.21 取消元素属性设置转移方法
 		}else{
 			obj[ "on" + type ] = null;
 		}
@@ -923,18 +964,19 @@ Q.CE = Q.CustomEvent = {
 		delete elem[ "ce" + type + fun ];
 	},
 	fire: function( elem, type, fun ){
-		if( !elem[ "ce" + type + fun ] ) return;
 		var args = Array.prototype.slice.call(arguments, 2), handler = elem[ "ce" + type + fun ];
-		handler.apply( elem, args );			
+		if( !handler ) return;
+		handler.apply( elem, args );	
 	},
 	clear: function( elem, type, fun ){
 		elem[ "ce" + type + fun ] = null;
 	}
-};
+}
 
 // 获取内容
 // 不完善的实现方式，尽量避免使用此方法。
 // Dom在未加载完毕或者元素大量存在并且页面复杂时会导致浏览器渲染失败，可能会出现操作中止的情况
+// 火狐浏览器下没有innerText和outerText属性
 Q.each({
 	html: "innerHTML",
 	HTML: "outerHTML",
@@ -953,7 +995,7 @@ Q.each({
 	}
 });
 
-// 元素过滤相关
+// 元素过滤与重载
 Q.fn.extend({
 	pushStack: function( elems ) {
 		// 重绘对象
@@ -961,7 +1003,7 @@ Q.fn.extend({
 
 		// Add the old object onto the stack (as a reference)
 		ret.prevObject = this;
-		ret.container = this.container;
+		ret.context = this.context;
 
 		// Return the newly-formed element set
 		return ret;
@@ -994,10 +1036,10 @@ Q.fn.extend({
 		return this.grep( function(i){ return i % a == (b||0) % a; } );
 	},
 	even: function(){
-		return this.nth(2);
+		return this.nth(2,1);
 	},
 	odd: function(){
-		return this.nth(2,1);
+		return this.nth(2);
 	},
 	index: function( elem ) {
 
@@ -1029,10 +1071,10 @@ var expando = "QsLinz" + Q.now(), qsuid = 0,
 	};
 
 Q.extend({
-	nodeName: function( node, name ){
+	nodeCheck: function( node, name ){
 		var nodeName = node && node.nodeName && node.nodeName.toLowerCase() || "";
 		if( typeof name === "string" ) return nodeName === name.toLowerCase();
-		return nodeName;
+		return !!nodeName;
 	},
 	// 数据标记
 	data: function( elem ){
@@ -1146,7 +1188,7 @@ Q.each({
 		return Q.sibling( elem.firstChild );
 	},
 	contents: function( elem ) {
-		return Q.nodeName( elem, "iframe" ) ?
+		return Q.nodeCheck( elem, "iframe" ) ?
 			elem.contentDocument || elem.contentWindow.document :
 			Q.merge( [], elem.childNodes );
 	}
@@ -1163,12 +1205,26 @@ Q.each({
 	}	
 });
 
+//子节点查找
+Q.fn.find = function( selector ){
+	if( typeof selector !== "string" ) return this.children();
+	var pre_selector = this.selector, context = this.toArray(), ret;
+	ret = Q( selector, context );
+	ret.selector = pre_selector === "" ? selector : pre_selector + " " + selector;
+	ret.prevObject = this;
+	ret.context = context;
+	return  ret;
+};
+
 // 文档规格与位置获取相关
 function gw( elem, name, value ){
-	var ret = parseInt( Q.getStyle( elem, name ), 10 );
-	return isNaN( ret ) ? value || 0 : ret;
-}
-	Q.extend({
+	//var ret = parseInt( Q.getStyle( elem, name ), 10 );	
+	var ret = parseFloat( Q.getStyle( elem, name ) ); //2014.11.21 由获取整数值改为获取浮点数值
+	//return isNaN( ret ) ? value || 0 : ret;
+	return ret || value || 0;
+};
+
+Q.extend({
 	getSize: function(elem) {
 		var width = elem.offsetWidth, height = elem.offsetHeight;
 		if ( !width && !height ) {
@@ -1210,17 +1266,14 @@ function gw( elem, name, value ){
 		//ie8的getBoundingClientRect获取不准确
 		if ( !node.getBoundingClientRect || Q.B.IE8 ) {
 			var n = node;
-			while (n) {
-				left += n.offsetLeft, top += n.offsetTop;
-				n = n.offsetParent;
-			}
+			while (n) { left += n.offsetLeft, top += n.offsetTop; n = n.offsetParent; };
 			right = left + node.offsetWidth; bottom = top + node.offsetHeight;
 		} else {
 			var rect = node.getBoundingClientRect();
 			left = right = Q.getScrollLeft(node); top = bottom = Q.getScrollTop(node);
 			left += rect.left; right += rect.right;
 			top += rect.top; bottom += rect.bottom;
-		}
+		};
 		return { "left": left, "top": top, "right": right, "bottom": bottom };
 	},
 	clientRect: function(node) {
@@ -1255,12 +1308,12 @@ Q.extend({
 		return elem;
 	},
 	genNode: function( value ){
-		var genNode = typeof value === "string" ? 
+		var _genNode = typeof value === "string" ? 
 			document.createTextNode( value ) : 
 				contains( document.body, value ) ? 
 				value.cloneNode( true ) :
 				value;
-		return genNode;
+		return _genNode;
 	},
 	append: function( elem, value ){
 		elem.appendChild( Q.genNode( value ) );
@@ -1314,548 +1367,37 @@ Q.fn.extend({
 	}
 });
 
-// 元素包裹相关
-Q.extend({
-	wrap: function( elem, options ){
-		options = Q.extend({ nodeName: "div" }, options || {} );
-		var wrapper = document.createElement( options.nodeName );
-		elem.parentNode.insertBefore( wrapper, elem.nextSibling );
-		wrapper.appendChild( elem );
-		delete options.nodeName;
-		Q.extend( wrapper, options );
-		return wrapper;
-	},
-	wrapInner: function( elem, name, options ){
-		options = Q.extend({ nodeName: "div" }, options || {} );
-		var wrapper = document.createElement( options.nodeName );
-		wrapper.innerHTML = elem.innerHTML; // Failed to use childNodes or cloneNode 'cause old-IE does not support it
-		Q.html( elem, wrapper );
-		delete options.nodeName;
-		Q.extend( wrapper, options );
-		return elem;
-	}
-});
-
-Q.fn.extend({
-	wrap: function( name, options ){
-		return this.each( function(){ Q.wrap( this, name, options );});
-	},
-	wrapInner: function( name, options ){
-		return this.each( function(){ Q.wrapInner( this, name, options );});
-	},
-	wrapAll: function( name, options ){
-		if( !this[0] ) return this;
-		
-		options = Q.extend({ nodeName: "div" }, options || {} );
-		
-		var wrapper = document.createElement( options.nodeName ), _location = this[0];
-		_location.parentNode.insertBefore( wrapper, _location );
-		
-		delete options.nodeName;
-		Q.extend( wrapper, options );
-		
-		return this.each( function(){ wrapper.appendChild( this ); });
-	}
-});
-
-// 元素动态效果处理
-Q.extend({
-	fade: function( elem, options ){
-		// There is a non-understand error in old-IE, whose opacity is not work as it should be.
-		// So, just avoid to use this method as possible.
-		if( elem.nodeType!== 1 ) return;
-		if( elem["_state_"] === "fading" ) return;
-		elem["_state_"] = "fading";
-		options = Q.extend({ from: 0, to: 100, speed: 50, step: 5, hide: false }, options || {});
-	    var from = options.from,
-			to = options.to,
-			speed = options.speed,
-			flag =  !!( from < to ), // true为渐显，false为渐隐
-			step = options.step * ( flag ? 1 : -1 );
-		to = to > 100 ? 100 : to < 0 ? 0 : to;
-		from = from > 100 ? 100 : from < 0 ? 0 : from;
-	    if( from === to ) return; //相等?!
-		Q.show( elem );
-	    (function(){
-	        Q.opacity( elem, from );
-	        from += step;
-			if( from > 100 && from - step < 100 ) from = 100;
-			if( from < 0 && from - step > 0 ) from = 0;
-	        if( flag ? from <= to : from >= to ){ 
-				setTimeout( arguments.callee, speed );
-			}else{ 
-				if( !flag && options.hide && to <= 0 ){ elem.style.display = "none"; Q.opacity( elem, 100 ); }
-				if( typeof options.callback === "function" ) options.callback.call( elem );
-				elem["_state_"] = "ready";
-			}
-	    })();
-	},
-	scroll: function( elem, options ){
-		if( elem.nodeType !== 1 ) return;
-		options = Q.extend({
-			direction: true,				//滚动方向
-			speed: 20, 						//滚动间隔
-			step: 20,						//滚动步长
-			quick: true,					//快速模式
-			smooth: 5,						//滚动柔和度
-			auto: true,						//自动播放
-			start: 500,						//自动播放的起始时间
-			width: 0,						//总长
-			page: 0,						//每次滚动的长度
-			delay: 3000,					//下一次整体滚动的延时
-			setwidth: false,				//设置内部宽度(仅在部分float混合元素时错位使用，会改变滚动特效)
-			next: null,						//下一个
-			prev: null,						//上一个
-			nav: null,						//导航菜单
-			nodename: "span",				//导航节点名称
-			normal: "normal",				//导航常规类
-			active: "active",				//导航活动类
-			istyle: true,					//使用内部样式
-			style:{
-				float:"left", width:"14px", height:"14px", display:"block", margin:"0 3px", cursor: "pointer", borderRadius: "50%", opacity: 0.9
-			},								//初始化样式
-			normalstyle: {
-				backgroundColor: "#b5b5b5"
-			},								//导航常规样式
-			activestyle: {
-				backgroundColor: "#c80002"
-			},								//导航活动样式
-			trigger: "click"				//导航触发方式
-		}, options || {} );
-		var S = {},										//滚动操作相关函数体
-			size = Q.getInnerSize( elem ),				//元素内部长宽
-			frame = options.width || size.width,		//总长
-			step = options.step,						//步长
-			speed = options.speed,						//速度
-			index = 0,									//当前滚动
-			nav = [],									//导航
-			_elem = elem.cloneNode( true ),				//备份
-			tmr = null,									//滚动定时器
-			state = "ready",							//滚动状态
-			nextprev = "done",							//上一个下一个
-			width, scrollWidth,							//单次滚动长度与滚动元素总长
-			obj = document.createElement("div"),		//滚动操作主体
-			div0 = document.createElement("div"),		//滚动包裹层
-			div1 = document.createElement("div"),		//生成内部元素
-			id =  "_qslinz_scroll_" + Q.now();			//滚动ID
-		/*- 生成滚动内部操作代码 -*/
-		Q.clear( elem );
-		elem.appendChild( obj );
-		Q.setStyle( obj, { overflow: "hidden", width: frame + "px" } );
-		div1.innerHTML = _elem.innerHTML;
-		obj.appendChild( div0 );
-		div0.appendChild( div1 );
-		Q.setStyle( div0, { overflow: "hidden", zoom: 1, width: "65535px" });
-		Q.setStyle( div1, { float: "left" });
-		if( options.setwidth ) Q.setStyle( div1, { width: size.width + "px" });
-		div0.appendChild(div1.cloneNode(true));
-		/*- 操作处理完毕 -*/
-		
-		scrollWidth = div1.scrollWidth;
-		width = options.page || scrollWidth;
-		
-		S = {
-			// 暂停状态
-			pause: false,
-			// 暂停时的修复状态记录
-			fix: 0,
-			// 暂停时的滚动方向记录
-			mode: false,
-			// 指定页码滚动显示处理
-			setPage: function(){
-				index = Math.round( obj.scrollLeft / frame );
-				if ( index > Math.round( div1.offsetWidth / frame + 0.4) - 1) {
-					index = 0;
-				}
-				for( var i = 0; i < nav.length; i++ ) {
-					if (i == index ) {
-						nav[i].className = options.active;
-						if( options.istyle ) Q.setStyle( nav[i], options.activestyle );
-					} else {
-						nav[i].className = options.normal;
-						if( options.istyle ) Q.setStyle( nav[i], options.normalstyle );
-					}
-				}
-			},
-			// 滚动主体实现
-			scroll: function( move, mode ){
-				
-				state = "scrolling";
-				
-				var _move = move / options.smooth,
-					direction = typeof mode === "boolean" ? mode : !!options.direction,
-					sl;
-				
-				if( S.pause ){
-					S.fix = move;
-					S.mode = direction;
-					return;
-				}
-				
-				if( !options.quick && _move > step ) _move = step;
-
-				_move = (Math.abs( _move ) < 1 && _move != 0) ? 1 : Math.round( _move );
-
-				if( direction ){
-					sl = obj.scrollLeft + _move;
-					if( sl >= scrollWidth ) sl = sl - scrollWidth;
-					obj.scrollLeft = sl;
-				} else {
-					sl = obj.scrollLeft - _move;
-					if( sl <= 0 ) sl = sl + scrollWidth;
-					obj.scrollLeft = sl;
-				}
-				
-				move -= _move;
-				
-				if (Math.abs(move) == 0) {
-					state = "ready";
-					nextprev = "done";
-					S.fix = width;
-					S.mode = direction;
-					if ( options.auto ) {
-						S.play();
-					}
-					S.setPage();
-
-				} else {
-					S.setPage();
-					setTimeout( function(){ S.scroll( move, direction ); }, options.speed );
-				}
-			},
-			next: function(){
-				if( state != "ready" ) return;
-				state = "ending";
-				S.scroll( width );
-			},
-			play: function (){
-				if( !options.auto ) return;
-				clearInterval(tmr);
-				tmr = setInterval( S.next, options.delay );
-			},
-			stop: function(){
-				clearInterval(tmr);
-			},
-			page: function( v ) {
-				S.pause = true;
-				state = "paging";
-				setTimeout( function(){ 
-					S.pause = false;
-					var n;
-					if( v === "prev" ) n = -1;
-					if( v === "next" ) n = 1;
-					if( typeof v === "number") n = v - index; 
-					if( n > 0 ){
-						S.scroll( ( S.mode ? S.fix : ( width - S.fix || width ) ) + ( n - 1 ) * frame, true );
-					} else if( n < 0 ){						
-						S.scroll( ( S.mode ? ( width - S.fix || width ) : S.fix ) + ( -n - 1 ) * frame, false );
-					} else {
-						S.scroll( 0 );
-					}
-				}, options.speed );
-			},
-			wait: function(){
-				S.pause = true;
-			},
-			goon: function(){
-				if(!S.pause) return;
-					S.pause = false;
-				if( state === "scrolling" )
-					S.scroll( S.fix, S.mode );
-			},
-			clear: function(){
-				elem.parentNode.replaceChild( _elem, elem );
-			}
-		};
-		if( options.auto ) S.play();
-		
-		/*- 设置操作项 -*/
-		Q( elem ).hover( S.wait, S.goon );
-		if( options.prev ) Q( options.prev ).click( function(){ S.page("prev"); } );
-		if( options.next ) Q( options.next ).click( function(){ S.page("next"); } );
-		if( options.nav ){
-			var objNav = Q.Q( options.nav ),
-				navs = Math.round( div1.offsetWidth / frame + 0.4),
-				i, objTemp;
-			//
-			if( objNav ){
-				Q.clear(objNav);
-				for( i = 0; i < navs; i++ ){
-					objTemp = document.createElement( options.nodename );
-					objNav.appendChild( objTemp );
-					if( options.istyle ) Q.setStyle( objTemp, options.style );
-					nav.push( objTemp );
-					if (i == index ) {
-						objTemp.className = options.active;						
-						if( options.istyle ) Q.setStyle( objTemp, options.activestyle );
-					} else {
-						objTemp.className = options.normal;			
-						if( options.istyle ) Q.setStyle( objTemp, options.normalstyle );
-					}
-					objTemp.title = (i + 1) + "";
-					objTemp._index = i;
-					Q.bind( objTemp, options.trigger, function(){ S.page( this._index ); });
-				}
-			}
-		}
-		/*- xovel 2014.6.5 scrollFunction -*/
-		/*-BUG: 
-			分页滚动时，如果同时操作上一个下一个，
-			在index数值发生变化的情况下进行时将导致滚动完成之后来回抖动的效果出现
-			且页面会一直抖动下去。当再次执行滚动操作时，由index值的未知性将会出现可能的位置错乱
-		  -暂无法修复。功能未禁用。避免同时使用翻页功能与NextPrev功能可防止此BUG
-		-*/
-		
-		return {
-			elem: elem,
-			obj: obj,
-			stop: S.stop,
-			play: S.play,
-			pause: S.pause,
-			goon: S.goon,
-			clear: S.clear,
-			next: function(){ S.page("prev"); },
-			prev: function(){ S.page("next"); }
-		}
-	},
-	udscroll: function( elem, options ){
-		if( elem.nodeType !== 1 ) return;
-		options = Q.extend({
-			direction: true,				//滚动方向
-			speed: 30,						//滚动速度
-			step: 1,						//单次滚动距离
-			start: 500,						//滚动起始时间
-			width: 0,						//指定宽度
-			height: 0						//指定高度
-		}, options || {} );
-		var S ={},											//操作函数体
-			size = Q.getInnerSize( elem ),					//元素内部宽高
-			_elem = elem.cloneNode(true),					//克隆备份
-			width = options.width || size.width,			//滚动宽度
-			height = options.height || size.height,			//滚动的高度
-			tmr = null,										//定时器
-			obj = document.createElement("div"),			//滚动操作主体
-			div0 = document.createElement("div"),			//滚动包裹层
-			div1 = document.createElement("div"),			//生成内部元素
-			id =  "_qslinz_scroll_" + Q.now();				//滚动ID
-		//
-		/*- 生成滚动内部操作代码 -*/
-		Q.clear( elem );
-		elem.appendChild( obj );
-		Q.setStyle( obj, { overflow: "hidden", width: width + "px", height: height + "px", position: "relative" } );
-		div1.innerHTML = _elem.innerHTML;
-		obj.appendChild( div0 );
-		div0.appendChild( div1 );
-		Q.setStyle( div0, { zoom: 1, position: "relative" });
-		Q.setStyle( div1, { height: size.height + "px" });
-		div0.appendChild(div1.cloneNode(true));
-		/*- 操作处理完毕 -*/
-		
-		S = {
-			scroll: function(){
-				var top = gw( div0, "top" ) + options.step * ( !!options.direction ? -1 : 1 );
-				if( top >= 0 ) top -= size.height;
-				if( top < -size.height ) top += size.height;
-				Q.setStyle( div0, { top: top + "px" } );
-			},
-			play: function(){
-				clearInterval(tmr);
-				tmr = setInterval( S.scroll, options.speed );
-			},
-			stop: function(){				
-				clearInterval(tmr);
-			},
-			clear: function(){
-				elem.parentNode.replaceChild( _elem, elem );
-			}
-		};
-		
-		setTimeout( S.play, options.start );
-		
-		Q( elem ).hover( S.stop, S.play );
-		
-		return S;		
-	},
-	tabs: function( elems, otabs, options ){
-		options = Q.extend( {
-			node: document,								//对象根节点
-			trigger: "mouseover",						//切换触发方式
-			normal: "normal",							//常规类
-			active: "active",							//活动类
-			init: 1,									//初始元素，为0时不做初始化
-			fade: false,								//是否渐显
-			speed: 30,									//渐显的速度
-			step: 5,									//渐显的缓和度
-			display:true,								//内容部分显隐方式，为false时将采用className的变更
-			keep: true,									//保持手动切换后导航效果
-			auto: false,								//自动切换
-			start:100,									//自动切换起始时间
-			delay: 3000,								//自动切换的时间间隔
-			prev: null,									//切换到上一个		
-			next: null,									//切换到下一个
-			callback: null								//完成后的回调函数
-		}, options || {} );
-		var navs = Q.Q( elems, options.node ),			//导航对象集合
-			cons = !otabs ? 
-				null : Q.Q( otabs, options.node ),		//内容对象集合
-			i = 0,
-			j = navs && navs.length,
-			k = cons && cons.length,					//循环与个数
-			conFlag = !!( k && j === k ),				//内容切换标志
-			_navs = Q( navs ),							//QDom导航
-			_cons = Q( cons ),							//QDom内容
-			tmr = null;									//自动切换相关定时器									
-		//
-		if(!j)return;
-		_navs.removeClass( options.active ).addClass( options.normal );
-		if( options.init && options.keep ) _navs.eq( options.init - 1 ).removeClass( options.normal ).addClass( options.active );
-		
-		if( cons && conFlag ){
-			_cons.hide();
-			if( options.init ) _cons.eq( options.init - 1 ).show();
-		}
-		_navs.on( options.trigger, function(){
-			var index = _navs.index( this );
-			if( _navs.hasClass(options.active,index)){ return; }
-			_tabs( index );
-		});
-		
-		if( !options.keep ){
-			_navs.mouseout( function(){ Q( this ).removeClass( options.active ).addClass( options.normal ); _cons.hide(); });
-			if( cons && conFlag ) _cons.mouseout( function(){ Q(this).hide(); });
-		}
-		
-		function _tabs( index ){
-			_navs.removeClass( options.active ).addClass( options.normal ).eq( index ).removeClass( options.normal ).addClass( options.active );
-			if( cons && conFlag ) options.display ? _cons.hide().eq( index ).show() : _cons.removeClass( options.active ).addClass( options.normal ).eq( index ).removeClass( options.normal ).addClass( options.active );
-			if( options.fade ) Q.fade( cons[index], { from:0, to:100, speed: options.speed, step: options.step } );
-			if( typeof options.callback === "function" ) options.callback.call( cons[index], index );
-		}
-		//处理自动切换相关
-		function _play( v ){
-			var id = 0;
-			v = (v == -1) ? -1 : 1;
-			for( i = 0; i < j; i++ ){
-				if( Q.hasClass( navs[i], options.active ) ) id = i + v;
-			}
-			_tabs( (id+j) % j );
-		}
-		if( options.prev ){
-			Q( options.prev ).click( function(){
-				clearInterval(tmr);
-				_play(-1);
-				if( options.auto ){ tmr = setInterval( function(){ _play(); }, options.delay ); }
-			});
-		}
-		if( options.next ){
-			Q( options.next ).click( function(){
-				clearInterval(tmr);
-				_play();
-				if( options.auto ){ tmr = setInterval( function(){ _play(); }, options.delay ); }
-			});
-
-		}
-		if( options.auto ){
-			setTimeout( function(){
-				clearInterval(tmr);
-				tmr = setInterval( function(){ _play(); }, options.delay );
-			}, options.start );
-			//鼠标悬停与离开的开闭操作
-			_cons.hover(
-				function(){ clearInterval(tmr); },
-				function(){ clearInterval(tmr); tmr = setInterval( function(){ _play(); }, options.delay );}
-			);
-			/*2014.7.11 调整导航部分悬停触发对象为父级元素，避免非块级元素在低版本IE下可能会出现的悬停全局失效*/
-			_navs.eq(0).parent().hover( 
-				function(){ clearInterval(tmr); },
-				function(){ clearInterval(tmr); tmr = setInterval( function(){ _play(); }, options.delay );}
-			);
-		}
-	},
-	// 元素同一视野内
-	always: function( first, second, options ){
-		options = Q.extend({
-			node: window,						//节点。使用window避免低版本IE下document无法scroll
-			trigger: "scroll"					//触发方式。一般为滚动
-		}, options || {} );
-		
-		first = Q( first ).get(0);						//第一个元素
-		second = Q( second ).get(0);					//第二个元素
-		if( !first || !second ) return;
-		
-		//
-		function _always(){
-			var clientHeight = docElem.clientHeight,
-				height1 = Q.getSize(first).height,
-				height2 = Q.getSize(second).height,
-				move = height1 < height2 ? first : second,
-				stat = height1 > height2 ? first : second,
-				ubound = Math.abs( height1 - height2 );
-				_height = Math.min( height1, height2 );
-			
-			if( height1 === height2 ) return;
-			Q.setStyle( move, { position: "relative" } );
-		
-			var value = gw( move, "top" ),
-				rect1 = Q.clientRect( move ),
-				rect2 = Q.clientRect( stat ),					
-				top1 = rect1.top,									//移动元素的对顶部可视距离
-				top2 = rect2.top,									//不动元素的对顶部可视距离
-				bottom = clientHeight - rect1.bottom;				//移动元素的对底部可视距离
-			
-			//移动元素顶部看不见，底部可见
-			if( top1 < 0 && bottom > 0 ) value = Math.min( value + bottom, ubound );
-			
-			//移动元素顶部可见，底部不可见
-			if( top1 > 0 && bottom < 0 ) value = top2 >=0 ? 0 : value - top1;
-			
-			//2013.12.23修正当两列相应元素高度小于窗口高度时滚动元素直接至底部的问题
-			if( _height <= clientHeight ){ value = -top2; value = value <= 0 ? 0 : value > ubound ? ubound : value; }
-			
-			if( value >= 0 && value <= ubound ) Q.setStyle( move, { top: value + "px" } );
-		}		
-		Q.on( options.node, options.trigger, function(){ _always(); });		
-	}
-});
-
-Q.fn.extend({
-	fade: function( options ){
-		return this.each( function(){ Q.fade( this, options ) });
-	},
-	fadein: function( options ){
+// Cookie
+Q.C = Q.Cookie = {
+	set: function( name, value, options ){
 		options = options || {};
-		options.from = 0;
-		options.to = 100;
-		return this.each( function(){ Q.fade( this, options ) });
+		if( value === null ) options.expires = -1;
+		var strCookie = encodeURIComponent(name) + '=' + encodeURIComponent( value );
+		if( typeof options.expires === "number" ){
+			var date = new Date();
+			date.setTime( date.getTime() + options.expires*60*60*1000 );
+			strCookie += "; expires=" + date.toGMTString();
+		}
+		if( options.path ) strCookie += "; path=" + options.path;
+		if( options.domain ) strCookie += "; domain=" + options.domain;
+		if( options.secure ) strCookie += "; secure";
+		
+		return document.cookie = strCookie;
 	},
-	fadeout: function( options ){
-		options = options || {};
-		options.from = 100;
-		options.to = 0;
-		return this.each( function(){ Q.fade( this, options ) });
+	get: function( name, NoDecode ){
+		if( name === undefined ) return document.cookie; 
+		var _c = document.cookie,
+			start = _c.indexOf( name ),
+			end = _c.indexOf( ';', start ),
+			value = start == -1 ? '': _c.substring( start + name.length + 1, ( end > start ? end : _c.length ) );		
+		return !!NoDecode ? value : decodeURIComponent( value );
 	},
-	marquee: function( options ){
-		options = options || {};
-		if( !options.direction ) options.direction = "left";
-		return this.each( function(){
-			if( options.direction === "up" || options.direction === "down" ){
-				options.direction = options.direction === "up" ? true : false;
-				var _x = Q.udscroll( this, options );
-				if( options.ret ) window[ options.ret ] = _x;
-			}
-			if( options.direction === "left" || options.direction === "right" ){
-				options.direction = options.direction === "left" ? true : false;
-				options.smooth = 1;
-				options.quick = false;
-				options.speed = options.speed || 30;
-				options.delay = options.speed;
-				options.step = options.step || 1;
-				var _x = Q.scroll( this, options );
-				if( options.ret ) window[ options.ret ] = _x;
-			}
-		});
+	del: function( name ){
+		var date = new Date();
+		date.setTime( date.getTime() - 10000 );
+		return document.cookie = name + '=; expires=' + date.toGMTString();
 	}
-});
+};
 
 // Ajax相关
 Q.extend({
@@ -1883,7 +1425,8 @@ Q.extend({
 					options.callback.call( this, xhr.responseText );
 				}
 			}
-		}
+		};
+		
 		xhr.open( options.method, options.url, options.async );
 		
 		xhr.send( options.post );
@@ -1924,155 +1467,236 @@ Q.extend({
 	}
 });
 
-// 添加到收藏与首页
+// 元素包裹相关
 Q.extend({
-	addFav: function( url, title ){
-		if( isIE ){
-			//IE类，直接添加
-			window.external.AddFavorite( url, title );
-		} else {
-			if( window.sidebar || window.chrome ){
-				//火狐或者谷歌浏览器，需要自行添加书签
-				alert("您的浏览器不支持该操作，请使用Ctrl+D手动设置.")
-			}else{
-				//其他浏览器将通过模拟点击anchor方式，主要适应opera浏览器，搜狗浏览器等
-				var _a = document.createElement("a");
-				_a.href = "javascript:window.external.AddFavorite('" + url + "','" + title + "');";
-				_a.click();
-			}
-		}
+	wrap: function( elem, options ){
+		options = Q.extend({ nodeName: "div" }, options || {} );
+		var wrapper = document.createElement( options.nodeName );
+		elem.parentNode.insertBefore( wrapper, elem.nextSibling );
+		wrapper.appendChild( elem );
+		delete options.nodeName;
+		Q.extend( wrapper, options );
+		return wrapper;
 	},
-	setHomepage: function(pageURL){
-		if (document.all) {
-			document.body.style.behavior = 'url(#default#homepage)';
-			document.body.setHomePage(pageURL);
-		} else {
-			try { //IE
-				netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-			} catch (e) {
-				try { //Firefox
-					var prefs = Components.classes['@mozilla.org/preferences-service;1'].getService(Components.interfaces.nsIPrefBranch);
-					prefs.setCharPref('browser.startup.homepage', pageURL);
-				} catch (e) {
-					alert("您的浏览器不支持该操作，请使用浏览器菜单手动设置.");
-				}
-			}
-		}
-	}	
+	wrapInner: function( elem, options ){
+		options = Q.extend({ nodeName: "div" }, options || {} );
+		var wrapper = document.createElement( options.nodeName );
+		wrapper.innerHTML = elem.innerHTML; // Failed to use childNodes or cloneNode 'cause old-IE does not support it
+		Q.html( elem, wrapper );
+		delete options.nodeName;
+		Q.extend( wrapper, options );
+		return elem;
+	}
 });
 
 Q.fn.extend({
-	fav: function( options ){
-		options = Q.extend({
-			url: document.location.href,
-			title: document.title,
-			trigger: "click"
-		}, options || {} );
-		return this.on( options.trigger, function(){ Q.addFav( options.url, options.title ); } );
+	wrap: function( options ){
+		return this.each( function(){ Q.wrap( this, options );});
 	},
-	homepage: function( options ){
-		options = Q.extend({
-			url: document.location.host,
-			trigger: "click"
-		}, options || {} );
-		return this.on( options.trigger, function(){ Q.setHomepage( options.url ); } );
+	wrapInner: function( options ){
+		return this.each( function(){ Q.wrapInner( this, options );});
+	},
+	wrapAll: function( options ){
+		if( !this[0] ) return this;
+		
+		options = Q.extend({ nodeName: "div" }, options || {} );
+		
+		var wrapper = document.createElement( options.nodeName ), _location = this[0];
+		_location.parentNode.insertBefore( wrapper, _location );
+		
+		delete options.nodeName;
+		Q.extend( wrapper, options );
+		
+		return this.each( function(){ wrapper.appendChild( this ); });
 	}
 });
 
-// Cookie
-Q.C = Q.cookie = {
-	set: function( name, value, options ){
-		options = options || {};
-		if( value === null ) options.expires = -1;
-		var strCookie = encodeURIComponent(name) + '=' + encodeURIComponent( value );
-		if( typeof options.expires === "number" ){
-			var date = new Date();
-			date.setTime( date.getTime() + options.expires*60*60*1000 );
-			strCookie += "; expires=" + date.toGMTString();
-		}
-		if( options.path ) strCookie += "; path=" + options.path;
-		if( options.domain ) strCookie += "; domain=" + options.domain;
-		if( options.secure ) strCookie += "; secure";
-		
-		return document.cookie = strCookie;
-	},
-	get: function( name, NoDecode ){
-		if( name === undefined ) return document.cookie; 
-		var _c = document.cookie,
-			start = _c.indexOf( name ),
-			end = _c.indexOf( ';', start ),
-			value = start == -1 ? '': _c.substring( start + name.length + 1, ( end > start ? end : _c.length ) );		
-		return !!NoDecode ? value : decodeURIComponent( value );
-	},
-	del: function( name ){
-		var date = new Date();
-		date.setTime( date.getTime() - 10000 );
-		return document.cookie = name + '=; expires=' + date.toGMTString();
-	}
-};
-
-//2014.6.28添加滚动至顶部特效，实现函数为Q.scrollTo
-Q.gotoTop = function( options ){
-	
-	if( Q.B.isIE6 ) return; 			//IE6下该效果禁止
-	
-	options = Q.extend({
-		value: 0,						//滚动最终位置
-		speed: 20,						//滚动缓动间隔
-		smooth: 10,						//柔和度
-		elem: null,						//滚动操作元素
-		father: document.body,			//生成追加部位
-		callback: null,					//完成回调函数
-		bottom: 50,						//对底部的距离
-		right: 560,						//居中靠右距离
-		zindex: 65535,					//z-index值
-		color: "blue",
-		hover: "red"
-	}, options || {} );
-	
-	var elem;
-	if( !options.elem ){
-		elem = document.createElement("div");
-		options.father.appendChild( elem );
-	} else {
-		elem = Q( options.elem ).get(0);
-	}
-	if( options.value == 0 ) elem.title = "\u81f3\u9876\u90e8"; //至顶部
-	
-	var qe = Q( elem );	
-	if( !options.elem ) qe.css({position:"fixed", zIndex: options.zindex, width: "50px", height: "50px", bottom: options.bottom + "px", right: "50%", marginRight: ( -options.right ) + "px", backgroundColor: options.color, cursor: "pointer" }).hover(function(){Q(this).css({backgroundColor: options.hover});},function(){Q(this).css({backgroundColor: options.color});});	
-	qe.click(function(){ Q.scrollTo( options.value, options.speed, options.smooth, options.callback );});	
-};
-
-Q.scrollTo = function( value, speed, smooth, fun ){
-		
-	(function(){
-		var top = Q.getScrollTop();
-		var dif = top - value;
-		
-		var move = ( top - value ) / smooth;
-		var con = true;
-		if( move <= value ){
-			move = value;
-			con = false;
-		}else{
-			move = top - move;
-			con = true;
-		}
-		window.scrollTo( 0, move );
-		
-		if( con ){
-			setTimeout( arguments.callee, speed );
-		} else {
-			if( typeof fun === "function" ) fun();
-		}
-	})();
-	
-};
-
-
 // Mount to window
 window.Q = window.QsLn = Q;
+
+// 2014.11.21 取消此方法，改用animate完成
+/*
+// 元素动态效果处理
+Q.fade = function( elem, options ){
+	// There is a non-understand error in old-IE, whose opacity is not work as it should be.
+	// So, just avoid to use this method as possible.
+	if( elem.nodeType!== 1 ) return;
+	if( elem["_state_"] === "fading" ) return;
+	elem["_state_"] = "fading";
+	options = Q.extend({ from: 0, to: 100, speed: 50, step: 5, hide: false }, options || {});
+	var from = options.from,
+		to = options.to,
+		speed = options.speed,
+		flag =  !!( from < to ), // true为渐显，false为渐隐
+		step = options.step * ( flag ? 1 : -1 );
+	to = to > 100 ? 100 : to < 0 ? 0 : to;
+	from = from > 100 ? 100 : from < 0 ? 0 : from;
+	if( from === to ) return; //相等?!
+	Q.show( elem );
+	(function(){
+		Q.opacity( elem, from );
+		from += step;
+		if( from > 100 && from - step < 100 ) from = 100;
+		if( from < 0 && from - step > 0 ) from = 0;
+		if( flag ? from <= to : from >= to ){ 
+			setTimeout( arguments.callee, speed );
+		}else{ 
+			if( !flag && options.hide && to <= 0 ){ elem.style.display = "none"; Q.opacity( elem, 100 ); }
+			if( typeof options.callback === "function" ) options.callback.call( elem );
+			elem["_state_"] = "ready";
+		}
+	})();
+};
+
+//渐显渐隐链式方法
+Q.fn.extend({
+	fade: function( options ){
+		return this.each( function(){ Q.fade( this, options ) });
+	},
+	fadein: function( options ){
+		options = options || {};
+		options.from = 0;
+		options.to = 100;
+		return this.each( function(){ Q.fade( this, options ) });
+	},
+	fadeout: function( options ){
+		options = options || {};
+		options.from = 100;
+		options.to = 0;
+		return this.each( function(){ Q.fade( this, options ) });
+	}
+});
+*///2014.11.21 取消此方法，改用animate完成
+
+//QsLinz简易CSS动画类 2014.11.21
+//Q.A = Q.Animation = Animation = {
+Q.extend({
+	//核心动画函数
+	/*
+		@param:elem Object 进行缓动的元素
+		@param:name String CSS名称
+		@param:value Number 最终的设定值
+		@param:duration Number 持续的时间
+		@param:easing Function 缓动方法
+		@param:callback Function 完成后的回调函数
+		@param:initForce Number 强制指定的初始值
+	*/
+	animate: function( elem, name, value, duration, easing, callback, initForce ){
+		if(!elem) return;
+		var 
+			//记录当前时间
+			n = Q.now(),
+			//初始值，强制指定则直接使用该值。透明度渐显初值修正为0，其他默认使用元素初始CSS值
+			b = typeof initForce === 'number' ? initForce : name === 'opacity' && value === 1 ? 0 : parseFloat( Q.getStyle( elem, name ) ) || 0,
+			//变化值
+			c = value - b,
+			//持续时间
+			d = (typeof duration === 'string' ? Q.animate._default[ duration ] : duration) || Q.animate._default.normal,
+			//缓动方法，未定义的方法全部采用线性方法
+			e = Q.easing[ easing ] || Q.easing.linear,
+			//元素的定时器名称
+			s = Q.animate._default.timer + name;
+		
+		//如果当前有正在运行的定时器，取消之
+		if( elem[s] ) clearInterval(elem[s]);
+		
+		//透明度相关修正
+		if( name === 'opacity' && Q.getStyle(elem,'display') === 'none' ){
+			Q.show( elem );
+			Q.setStyle( elem, name, 0 );
+		}
+		
+		//设置定时器
+		elem[s] = setInterval(function(){			
+			var v,t = Q.now() - n; //时间戳
+			if( t < d ){
+				//根据缓动方法获取当前设定的数值
+				v = e(t,b,c,d);
+				//修正数值
+				
+				if( name !== 'opacity' ) v = v + 'px';
+				//时间未超出时设置元素的样式
+				Q.setStyle( elem, name, v );
+			} else {
+				//完成后的操作
+				clearInterval( elem[s] );
+				
+				//删除元素的定时器属性
+				//delete elem[s];
+				
+				//设置最终值
+				if( name !== 'opacity' ) value = value + 'px';
+				Q.setStyle( elem, name, value );
+				
+				//函数回调
+				if( typeof callback === 'function' ) callback.call( elem );
+			}		
+		},Q.animate._default.interval);
+		
+		return elem;
+	},
+	//停止缓动特效
+	stop: function( elem, name ){
+		if( typeof name === 'string' ){
+			clearInterval(elem[Q.animate._default.timer+name]);
+		}else{
+			for(var p in elem) if(p.indexOf(Q.animate._default.timer)!==-1) clearInterval(elem[p]);
+		}
+	},
+	/*
+	t: current time（当前时间）；
+	b: beginning value（初始值）；
+	c: change in value（变化量）；
+	d: duration（持续时间）。
+	p,s：Elastic和Back有其他可选参数，里面都有说明。
+	*/
+	easing:{		
+		linear:function(t,b,c,d){return c*t/d + b;},
+		swing:function(t,b,c,d) {return -c/2 * (Math.cos(Math.PI*t/d) - 1) + b;}		
+	}
+});
+
+//动画执行的一些默认参数
+Q.animate._default={
+	interval: 10,
+	timer: "timer-",
+	normal: 400,
+	slow: 600,
+	fast: 200
+}
+
+//动画方法
+Q.fn.extend({
+	animate: function( name, value, duration, easing, callback, initForce ){
+		return this.each(function(){
+			Q.animate( this, name, value, duration, easing, callback, initForce );
+		});
+	},
+	fadein: function( speed, callback ){
+		return this.animate( 'opacity', 1, speed, 'linear', callback, 0 );
+	},
+	fadeout: function( speed, callback ){
+		return this.animate( 'opacity', 0, speed, 'linear', callback, 1 );
+	},
+	fade: function( speed, start, end, callback ){
+		return this.animate( 'opacity', end, speed, 'linear', callback, start );
+	},
+	slideUp: function( speed, easing ){
+		return this.animate( 'height', 0, speed, easing );
+	},
+	slideDown: function( speed, height, easing ){
+		return this.animate( 'height', height, speed, easing , null, 0 );
+	},
+	stop: function( name ){
+		return this.each(function(){
+			Q.stop( this, name );
+		});
+	}
+});
+
 })(window);
+
+
+
 
 
