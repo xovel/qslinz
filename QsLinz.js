@@ -804,10 +804,12 @@ function contains(parentNode, childNode){
 	} else {
 		return !!(parentNode.compareDocumentPosition(childNode) & 16);
 	}
-};
+}
 //2014.7.11 修复FireFox下没有window.event对象的问题
-function getEvent(e){ return e||window.event||arguments.callee.caller.arguments[0]; };
-function mouseHover(target,e){
+	function getEvent(e) {
+		return e || window.event || arguments.callee.caller.arguments[0];
+	}
+	function mouseHover(target,e){
 	//var e = window.event || arguments.callee.caller.arguments[0];
 	if(getEvent(e).type.toLowerCase()=="mouseover"){
 	//if(e.type=="mouseover"){
@@ -817,9 +819,8 @@ function mouseHover(target,e){
 		return !contains(target,getEvent(e).relatedTarget||getEvent(e).toElement) && !((getEvent(e).relatedTarget||getEvent(e).toElement)===target);
 		//return !contains(target,e.relatedTarget||e.toElement) && !((e.relatedTarget||e.toElement)===target);
 	}
-};
-
-Q.extend({
+}
+	Q.extend({
 	contains: contains,
 	//Sizzle contains method 
 	contains_Sizzle: function( a, b ) {
@@ -929,7 +930,7 @@ Q.CE = Q.CustomEvent = {
 	clear: function( elem, type, fun ){
 		elem[ "ce" + type + fun ] = null;
 	}
-}
+};
 
 // 获取内容
 // 不完善的实现方式，尽量避免使用此方法。
@@ -1166,9 +1167,8 @@ Q.each({
 function gw( elem, name, value ){
 	var ret = parseInt( Q.getStyle( elem, name ), 10 );
 	return isNaN( ret ) ? value || 0 : ret;
-};
-
-Q.extend({
+}
+	Q.extend({
 	getSize: function(elem) {
 		var width = elem.offsetWidth, height = elem.offsetHeight;
 		if ( !width && !height ) {
@@ -1210,14 +1210,17 @@ Q.extend({
 		//ie8的getBoundingClientRect获取不准确
 		if ( !node.getBoundingClientRect || Q.B.IE8 ) {
 			var n = node;
-			while (n) { left += n.offsetLeft, top += n.offsetTop; n = n.offsetParent; };
+			while (n) {
+				left += n.offsetLeft, top += n.offsetTop;
+				n = n.offsetParent;
+			}
 			right = left + node.offsetWidth; bottom = top + node.offsetHeight;
 		} else {
 			var rect = node.getBoundingClientRect();
 			left = right = Q.getScrollLeft(node); top = bottom = Q.getScrollTop(node);
 			left += rect.left; right += rect.right;
 			top += rect.top; bottom += rect.bottom;
-		};
+		}
 		return { "left": left, "top": top, "right": right, "bottom": bottom };
 	},
 	clientRect: function(node) {
@@ -1463,7 +1466,7 @@ Q.extend({
 				index = Math.round( obj.scrollLeft / frame );
 				if ( index > Math.round( div1.offsetWidth / frame + 0.4) - 1) {
 					index = 0;
-				};
+				}
 				for( var i = 0; i < nav.length; i++ ) {
 					if (i == index ) {
 						nav[i].className = options.active;
@@ -1512,9 +1515,9 @@ Q.extend({
 					S.mode = direction;
 					if ( options.auto ) {
 						S.play();
-					};
+					}
 					S.setPage();
-					return;
+
 				} else {
 					S.setPage();
 					setTimeout( function(){ S.scroll( move, direction ); }, options.speed );
@@ -1588,13 +1591,13 @@ Q.extend({
 					} else {
 						objTemp.className = options.normal;			
 						if( options.istyle ) Q.setStyle( objTemp, options.normalstyle );
-					};
+					}
 					objTemp.title = (i + 1) + "";
 					objTemp._index = i;
 					Q.bind( objTemp, options.trigger, function(){ S.page( this._index ); });
 				}
 			}
-		};
+		}
 		/*- xovel 2014.6.5 scrollFunction -*/
 		/*-BUG: 
 			分页滚动时，如果同时操作上一个下一个，
@@ -1665,7 +1668,7 @@ Q.extend({
 			clear: function(){
 				elem.parentNode.replaceChild( _elem, elem );
 			}
-		}
+		};
 		
 		setTimeout( S.play, options.start );
 		
@@ -1736,24 +1739,22 @@ Q.extend({
 				if( Q.hasClass( navs[i], options.active ) ) id = i + v;
 			}
 			_tabs( (id+j) % j );
-		};
-		
+		}
 		if( options.prev ){
 			Q( options.prev ).click( function(){
 				clearInterval(tmr);
 				_play(-1);
 				if( options.auto ){ tmr = setInterval( function(){ _play(); }, options.delay ); }
 			});
-		};
-		
+		}
 		if( options.next ){
 			Q( options.next ).click( function(){
 				clearInterval(tmr);
 				_play();
 				if( options.auto ){ tmr = setInterval( function(){ _play(); }, options.delay ); }
-			});			
-		};
-		
+			});
+
+		}
 		if( options.auto ){
 			setTimeout( function(){
 				clearInterval(tmr);
@@ -1882,8 +1883,7 @@ Q.extend({
 					options.callback.call( this, xhr.responseText );
 				}
 			}
-		};
-		
+		}
 		xhr.open( options.method, options.url, options.async );
 		
 		xhr.send( options.post );
@@ -2065,8 +2065,7 @@ Q.scrollTo = function( value, speed, smooth, fun ){
 			setTimeout( arguments.callee, speed );
 		} else {
 			if( typeof fun === "function" ) fun();
-		};
-		
+		}
 	})();
 	
 };
