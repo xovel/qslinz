@@ -1,12 +1,12 @@
 /*
- * Qs.zLw QsLinz Javascript Library version 0.1.3
+ * Qs.zLw QsLinz Javascript Library version 0.1.4
  * A simple but funny javascript library.
- * Last Update: Tue Mar 24 2015 14:10:27 GMT+0800 CST
+ * Last Update: Unknown
  */
 
 ;(function( window, undefined ) {
 
-var core_version = "0.1.3",
+var core_version = "0.1.4",
 	
 	readyList = [],	
 	
@@ -35,7 +35,7 @@ Q.fn = Q.prototype = {
 		var sType = typeof selector;
 		
 		if( sType === "function" ){
-			return Q.ready( selector );
+			return Q( document ).ready( selector );
 		}
 		
 		if( sType === "string" ){
@@ -122,7 +122,7 @@ Q.extend({
 	noConflict: function(){
 		window.Q = _Q;
 		return Q;
-	},
+	}, /* 2015.5.29 删除该函数
 	extendEx: function( deep, target, source ){		
 		//进阶扩展，不覆盖原有属性，设置deep为真时将强制覆盖
 		for( var name in source ){
@@ -130,7 +130,7 @@ Q.extend({
 			target[name] = source[name];
 		}
 		return target;
-	},
+	}, */
 	isReady: false,
 	each : function( obj, fn ){
 		var value, i = 0, length = obj.length;
@@ -270,61 +270,64 @@ Q.extend({
 });
 
 //文档就绪相关
-Q.ready = function () {
+Q.ready = Q.fn.ready = function () {
 	
 	var timer = null,
 	
 	_readyEx = function( fn ){
+		
+		if( typeof fn !== 'function' ){
+			return this;
+		}
+		
 		if( Q.isReady ){
-			//文档若已就绪，直接执行
 			fn();
 		} else {
-			//未就绪则压入列表等待执行
 			readyList.push( fn );
 		}
+		
+		return this;
 	},
 	
 	_readyPro = function(){
 		for( var i = 0, j = readyList.length; i < j; i++ ){
-			//依次执行被压入的对象
 			readyList[i]();
+			//setTimeout(readyList[i], 13);
 		}
 	},
 	
 	_readyBind = function(e){
 		
-		if( Q.isReady ) return;  //已就绪
+		if( Q.isReady ) return; 
 		
-		Q.isReady = true;  //执行时意味已经就绪
+		Q.isReady = true; 
 		
-		_readyPro();  //执行！
+		_readyPro(); 
 		
 		if( document.removeEventListener ){
-			document.removeEventListener( "DOMContentLoaded", _readyBind, false );   //事件移除			
+			document.removeEventListener( "DOMContentLoaded", _readyBind, false );  		
 		} else if( document.detachEvent ){
 			
-			document.detachEvent( "onreadystatechange", _readyBind );  //IE事件移除
+			document.detachEvent( "onreadystatechange", _readyBind );  
 			
 			if( window == window.top ){
-				clearInterval( timer );  //清除定时器
+				clearInterval( timer );  
 				timer = null;
 			}
 		}
 	};
 	
 	if ( document.addEventListener ) {
-		document.addEventListener( "DOMContentLoaded", _readyBind, false );	//事件侦听
+		document.addEventListener( "DOMContentLoaded", _readyBind, false );	
 	} else if ( document.attachEvent ) {
 		document.attachEvent( "onreadystatechange", function () {
-			if ( document.readyState == "load" || document.readyState == "complete" ) _readyBind(); //IE下文档就绪
+			if ( document.readyState == "load" || document.readyState == "complete" ) _readyBind(); 
 		});
 		if ( window == window.top ) {
-			//兼容处理，顶级窗口下的定时执行
 			timer = setInterval(function () {
 				try {
 					Q.isReady || document.documentElement.doScroll('left');
 				} catch (e) {
-					//就绪预处理操作完成，但文档无法执行doSrcoll时
 					return;
 				}
 				_readyBind();
@@ -396,6 +399,16 @@ Q.extend({
 	},
 	isHTMLElement: function( unkown ){ return /element/.test( Q.type( unkown ) ); },
 	isNode: function( unkown ){ return !!unkown && unkown.nodeType && unkown.nodeType === 1 || false; }
+	
+	// 2015.5.28 新增isPlainObject方法，检测对象是否纯碎由{}或者new Object方法定义，代码摘自 Zepto v1.0rc1
+	,isPlainObject: function(value) {
+		var key, ctor
+		if (({}).toString.call(value) !== "[object Object]") return false
+		ctor = (Q.isFunction(value.constructor) && value.constructor.prototype)
+		if (!ctor || !hasOwnProperty.call(ctor, 'isPrototypeOf')) return false
+		for (key in value);
+		return key === undefined || hasOwnProperty.call(value, key)
+  	}
 });
 
 // 选择器。非通用，开发代号：QinF
@@ -707,7 +720,7 @@ Q.support = (function(support){
 })({});
 
 // CSS与文档属性操作相关
-Q.extend({	
+Q.extend({
 	setAttr: function( obj, attr, value ) {
 		if( typeof obj !== "object" ) return;
 		if( typeof attr == "string" ){ var _attr = attr; attr = {}; attr[ _attr ] = value; }
@@ -745,13 +758,34 @@ Q.extend({
 				//obj.style[ Q.isIE ? "styleFloat" : "cssFloat" ] = value; // IE9+与Opera均支持cssFloat
 				obj.style[ Q.support.cssFloat ? "cssFloat" : "styleFloat" ] = value; // 2015.3.23 采用support设置float
 			}else{
+				/*
 				// 2015.3.23 加入纯数值判定
 				if( typeof value === 'number' && (/width|height|top|bottom|right|left|margin|padding/i).test(name) ) {
 					value = value + 'px';
 				}
+				*/
 				
+				//2015.5.28 Zepto的AddPx处理方法
+				name = Q.camelCase( name );		
+				
+				if( typeof value ==='number' && !{
+					"columnCount": 1,
+					"fillOpacity": 1,
+					"flexGrow": 1,
+					"flexShrink": 1,
+					"fontWeight": 1,
+					"lineHeight": 1,
+					"opacity": 1,
+					"order": 1,
+					"orphans": 1,
+					"widows": 1,
+					"zIndex": 1,
+					"zoom": 1
+				}[name] ){
+					value = value + 'px';
+				}
 				/**/
-				obj.style[ Q.camelCase( name ) ] = value;
+				obj.style[ name ] = value;
 			}
 		}
 	},
@@ -788,6 +822,7 @@ Q.extend({
 	show: function( elem ){
 		if( typeof elem !== "object" ) return;
 		var tagName = elem.nodeName.toLowerCase(), value = "block";
+		
 		var oDisplay = {
 			li:"list-item",
 			//head:"none",
@@ -847,8 +882,10 @@ Q.fn.extend({
 		//.css("display")
 		if( typeof style === "string" && typeof value === "undefined" ) return Q.getStyle( this[0], style );
 		
+		/** 2015.5.28 please use `.eq` method instead of this
 		//.css("display",3)
 		if( typeof style === "string" && typeof value === "number" ) return Q.getStyle( this[value], style );
+		*/
 		
 		return this.each( function(){ Q.setStyle( this, style, value ); } );
 	},
@@ -891,45 +928,18 @@ function contains(parentNode, childNode){
 		return !!(parentNode.compareDocumentPosition(childNode) & 16);
 	}
 };
-//2014.7.11 修复FireFox下没有window.event对象的问题
-function getEvent(e){ return e||window.event||arguments.callee.caller.arguments[0]; };
 function mouseHover(target,e){
-	//var e = window.event || arguments.callee.caller.arguments[0];
-	if(getEvent(e).type.toLowerCase()=="mouseover"){
-	//if(e.type=="mouseover"){
-		return !contains(target,getEvent(e).relatedTarget||getEvent(e).fromElement) && !((getEvent(e).relatedTarget||getEvent(e).fromElement)===target);
-		//return !contains(target,e.relatedTarget||e.fromElement) && !((e.relatedTarget||e.fromElement)===target);
+	var e = window.event || arguments.callee.caller.arguments[0];
+	if(e.type.toLowerCase()==="mouseover"){
+		return !contains(target,e.relatedTarget||e.fromElement) && !((e.relatedTarget||e.fromElement)===target);
 	} else {
-		return !contains(target,getEvent(e).relatedTarget||getEvent(e).toElement) && !((getEvent(e).relatedTarget||getEvent(e).toElement)===target);
-		//return !contains(target,e.relatedTarget||e.toElement) && !((e.relatedTarget||e.toElement)===target);
+		return !contains(target,e.relatedTarget||e.toElement) && !((e.relatedTarget||e.toElement)===target);
 	}
 };
 
 Q.extend({
 	contains: contains,
-	/*
-	//Sizzle contains method 
-	contains_Sizzle: function( a, b ) {
-		var adown = a.nodeType === 9 ? a.documentElement : a,
-			bup = b && b.parentNode;
-		return a === bup || !!( bup && bup.nodeType === 1 && (
-			adown.contains ?
-				adown.contains( bup ) :
-				a.compareDocumentPosition && a.compareDocumentPosition( bup ) & 16
-		));
-	},
-	//Sizzle contais method violently
-	contains_Sizzle2: function( a, b ) {
-		if ( b ) {
-			while ( (b = b.parentNode) ) {
-				if ( b === a ) {
-					return true;
-				}
-			}
-		}
-		return false;
-	}, // 隐藏Sizzle内部方法 *////**/
-	bind: function( obj, type, fun ){
+	bind: function( obj, type, fun, useCapture ){
 		if( !obj || Q.type(fun) !== "function" ) return;
 		
 		//尝试修正mouseover与mouseout相关兼容问题
@@ -946,7 +956,7 @@ Q.extend({
 		}
 		
 		if( obj.addEventListener ){
-			obj.addEventListener( type, fun, false );
+			obj.addEventListener( type, fun, !!useCapture );
 		}else if( obj.attachEvent ){
 			//obj[ "e" + type + fun ] = fun;
 			//obj.attachEvent( "on" + type, function(){ obj[ "e" + type + fun ].call( obj, window.event ); } );
@@ -955,10 +965,10 @@ Q.extend({
 			obj[ "on" + type ] = fun;
 		}
 	},
-	unbind: function( obj, type, fun ){
+	unbind: function( obj, type, fun, useCapture ){
 		if( !obj || Q.type(fun) !== "function" ) return;
 		if( obj.removeEventListener ){
-			obj.removeEventListener( type, fun, false );
+			obj.removeEventListener( type, fun, !!useCapture );
 		}else if( obj.detachEvent ){
 			//obj.detachEvent( "on" + type, obj[ "e" + type + fun ] );
 			//obj[ "e" + type + fun ] = null;
@@ -1122,12 +1132,12 @@ Q.extend({
 		return !!nodeName;
 	},
 	// 数据标记
-	data: function( elem ){
+	data: function( elem, noSet ){
 		elem = elem === window ? {} : elem;
 		var id = elem[ expando ];
 		// 元素对应ID不存在则加入新标记
-		if( !id ) id = elem[ expando ] = ++qsuid;
-		return id;
+		if( !id && !noSet ) id = elem[ expando ] = ++qsuid;
+		return id  || '';
 	},
 	// 移除标记
 	removeData: function( elem ) {
@@ -1353,7 +1363,7 @@ Q.extend({
 		return elem;
 	},
 	// 2015.3.23 取消创建HTML节点的方法，在传入参数的时候自行确定元素是否包裹或者克隆
-	/*
+	// 2015.6.11 还原getNode方法
 	genNode: function( value ){
 		var _genNode = typeof value === "string" ? 
 			document.createTextNode( value ) : 
@@ -1361,28 +1371,28 @@ Q.extend({
 				value.cloneNode( true ) :
 				value;
 		return _genNode;
-	},*/
+	},
 	append: function( elem, value ){
-		elem.appendChild( value /*Q.genNode( value )*/ );
+		elem.appendChild( Q.genNode( value ) );
 		return elem;
 	},
 	prepend: function( elem, value ){		
-		elem.insertBefore( value /*Q.genNode( value )*/, elem.firstChild );
+		elem.insertBefore( Q.genNode( value ), elem.firstChild );
 		return elem;
 	},
 	html: function( elem, value ){
 		return Q.append( Q.clear( elem ), value );
 	},  // 此方法中如果第二个参数为字符串请使用Q.fn.html替代 2015.3.23
 	before: function( elem, value ){
-		elem.parentNode.insertBefore( value /*Q.genNode( value )*/, elem );
+		elem.parentNode.insertBefore( Q.genNode( value ), elem );
 		return elem.parentNode;
 	},
 	after: function( elem, value ){
-		elem.parentNode.insertBefore( value /*Q.genNode( value )*/, elem.nextSibling );
+		elem.parentNode.insertBefore( Q.genNode( value ), elem.nextSibling );
 		return elem.parentNode;
 	},
 	insert: function( elem, value, pos ){
-		elem.insertBefore( value /*Q.genNode( value )*/, pos || null );
+		elem.insertBefore( Q.genNode( value ), pos || null );
 		return elem;
 	}
 });
